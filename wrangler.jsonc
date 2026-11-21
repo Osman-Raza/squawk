@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "squawk",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+
+  // Dashboard (public/) served by the same Worker. API routes run first.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
+
+  // Workers AI: diagnosis + work orders
+  "ai": { "binding": "AI" },
+
+  // D1: replace database_id with the id printed by `npx wrangler d1 create squawk-db`
+  "d1_databases": [
+    { "binding": "DB", "database_name": "squawk-db", "database_id": "REPLACE_WITH_YOUR_D1_ID" }
+  ]
+
+  // R2 (optional, stores raw uploaded logs). Uncomment after `npx wrangler r2 bucket create squawk-logs`
+  // ,"r2_buckets": [ { "binding": "LOGS", "bucket_name": "squawk-logs" } ]
+}

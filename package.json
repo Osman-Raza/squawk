@@ -1,0 +1,19 @@
+{
+  "name": "squawk",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:schema": "wrangler d1 execute squawk-db --remote --file=schema.sql",
+    "db:seed": "wrangler d1 execute squawk-db --remote --file=seed/seed.sql",
+    "deploy": "wrangler deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^4.166.0"
+  },
+  "type": "module"
+}
