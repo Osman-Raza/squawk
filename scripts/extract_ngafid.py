@@ -131,9 +131,16 @@ def main():
             df = df.set_index("__index_level_0__")
         hit = df[df.index.isin(wanted.keys())]
         for idx, g in hit.groupby(level=0):
-            g = g.sort_values("timestep").iloc[:: args.step]
+            g = g.sort_values("timestep")
+            # Peak vertical load is a 1-second event, so measure it on the full-resolution data before downsampling.
+            meta = ""
+            if "NormAc" in g.columns and "IAS" in g.columns:
+                air = g[g["IAS"] > 30]["NormAc"].dropna()
+                if len(air) >= 30:
+                    meta = f", g_peak={float((air - air.median()).abs().max()):.3f}"
+            g = g.iloc[:: args.step]
             with open(out / "flights" / f"{int(idx)}.csv", "w", newline="") as fh:
-                fh.write(f"# step_seconds={args.step}, source=NGAFID master_index={int(idx)}\n")
+                fh.write(f"# step_seconds={args.step}{meta}, source=NGAFID master_index={int(idx)}\n")
                 g[[c for c in SENSORS if c in g.columns]].to_csv(fh, index=False, float_format="%.2f")
             found[int(idx)] = len(g)
         if n % 25 == 0 or n == len(files):

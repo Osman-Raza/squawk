@@ -57,7 +57,7 @@ npm run db:schema && npm run db:seed
 The dataset doesn't publish tail numbers. It's organized around ~2,100 real unplanned maintenance events, with each flight labeled by how many days before/after the repair it happened.
 - **Repair-case aircraft:** the real flights *before* a repair are its history. The flights *after* the repair are hidden and only shown with the "Show what actually happened next" toggle.
 - **Healthy aircraft:** real flights *after* a completed repair.
-- Aircraft get anonymized IDs (`SQK-01`, ...). Say this honestly if judges ask.
+- Aircraft get fictional Canadian-format registrations (`C-GKWA`, `C-FTRX`, ...), and the dashboard labels them as fictional. Say this honestly if judges ask.
 
 ## 3. Demo flow (60 seconds)
 1. Fleet view: 3 red, 7 green, ranked by risk.
@@ -69,10 +69,17 @@ The dataset doesn't publish tail numbers. It's organized around ~2,100 real unpl
 Before the pitch: generate the work orders once so they're cached, in case the Wi-Fi is bad.
 
 ## How detection works
-- **Per flight** (`computeFeatures`): cruise-only averages of CHT/EGT per cylinder, each cylinder's deviation from the engine average, EGT oscillation (sticking valve signature), oil pressure/temperature, fuel flow per 1000 RPM, RPM roughness, bus voltage.
-- **Fleet baseline:** median + MAD of each feature across every current flight in the fleet (robust to the bad flights).
-- **Aircraft risk:** for each check, the median z-score of the last 5 flights in the direction that matters (low oil pressure is bad, high is not). One noisy flight can't trigger an alert. ≥2.25σ = Watch, ≥3.5σ = Action needed.
-- **AI:** findings + matching known patterns → Llama 3.3 70B → structured JSON (title, summary, causes, actions, parts, urgency). If the model fails or returns junk, the rule-based diagnosis from `knowledge.js` is used and the UI says so.
+- **Per flight** (`computeFeatures`): up to 29 readings across 7 systems, using only channels the log records. Cylinders and valves (CHT per cylinder vs average, peak CHT, EGT oscillation), combustion (EGT spread and per-cylinder deviation, fuel flow per 1000 RPM, RPM roughness), oil (pressure, pressure fluctuation, temperature), electrical (both buses' voltage and current), fuel system (tank-gauge burn vs fuel flow reading, left/right imbalance), performance (cruise speed for the power set, full-power climb rate) and structure (peak vertical load). A channel that's missing or empty is reported as "not recorded", never estimated.
+- **Outside air temperature:** the fleet's own data is used to learn how much peak CHT and oil temperature rise per °C outside (least-squares slope). The correction is only applied when the link is clear (|r| ≥ 0.3, at least 15 flights).
+- **Fleet baseline:** median + MAD of each reading across every current flight in the fleet (robust to the bad flights).
+- **Aircraft risk:** for each check, the median z-score of the last 5 flights in the direction that matters (low oil pressure is bad, high is not). One noisy flight can't trigger an alert. Peak vertical load uses the worst recent flight instead, because one hard landing is what matters. ≥2.25σ = Watch, ≥3.5σ = Needs attention.
+- **Forecast:** a straight-line fit through each reading's last 8 flights. A forecast ("reaches the limit in about N flights") only appears when the fit is good (R² ≥ 0.5), it's heading toward the threshold, and the threshold is within 30 flights. Readings still in the normal range that will hit caution within 10 flights show up as early warnings.
+- **Prediction in the chart:** past the last real flight, the chart shows a "Predicted" zone with two forecasts. *Fleet history* (shaded band): Squawk takes this plane's last 4 flights for that reading, finds the most similar 4-flight stretches in other planes' histories (and this plane's own earlier flights), within 1.5σ, at most one per plane, and applies what happened over their next 6 flights. It needs at least 3 matches or it says so instead of guessing. *Own trend* (dotted): the straight-line fit described above. If a plane is normal but predicted to hit a limit, its page opens on that reading and the verdict says so.
+- **History:** the status strip and replay rerun the exact same check after each flight, using only the data that existed at that point.
+- **AI:** findings, early warnings and matching known patterns go to Llama 3.3 70B, which writes a structured work order. It's told not to invent readings or causes. If the model fails or returns junk, the rule-based diagnosis from `knowledge.js` is used and the UI says so.
+- **Not covered:** engine-monitor logs say nothing about the propeller, flight controls, landing gear, avionics, corrosion or required inspections. The dashboard lists these so nobody assumes they're checked.
+
+After pulling these changes, rebuild and reload the seed (`node scripts/build_seed.mjs data/ngafid` then `npm run db:schema && npm run db:seed`), because the new readings are computed when the seed is built.
 
 Advisory only: a licensed mechanic makes the final call.
 

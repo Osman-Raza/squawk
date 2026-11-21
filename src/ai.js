@@ -32,7 +32,7 @@ export async function diagnose(env, aircraft, assessment) {
           role: "system",
           content:
             "You are a senior A&P/AME maintenance analyst for a general aviation fleet. You turn engine-monitor trend findings into a concise diagnosis and a work order. " +
-            "Only use the findings and reference patterns provided. Do not invent readings. Be specific about which cylinder. This is advisory; the mechanic decides. " +
+            "Only use the findings and reference patterns provided. Do not invent readings, numbers, part numbers or causes that are not supported by them. Be specific about which cylinder. Forecasts are estimates if the trend continues; say so. This is advisory; the mechanic decides. " +
             "Reply with ONLY a JSON object, no markdown.",
         },
         { role: "user", content: prompt },
@@ -56,7 +56,10 @@ Overall status: ${assessment.status.toUpperCase()} (risk score ${assessment.scor
 Findings from the detection engine (recent flights vs fleet baseline):
 ${assessment.findings.map((f, i) => `${i + 1}. ${describeFinding(f)} Flagged on ${Math.round(f.persistence * 100)}% of recent flights.`).join("\n")}
 
-Reference patterns that match these findings:
+${assessment.early?.length ? `Early warnings (still in normal range, but trending toward caution):
+${assessment.early.map((f) => `- ${f.label}: ${f.recent_value} ${f.unit} now, reaches caution in about ${f.trend.to_caution} flights if the trend continues.`).join("\n")}
+
+` : ""}Reference patterns that match these findings:
 ${patterns.map((p) => `- ${p.cause}: ${p.why} Typical actions: ${p.actions.join("; ")}.`).join("\n")}
 
 Return JSON with exactly these keys:
